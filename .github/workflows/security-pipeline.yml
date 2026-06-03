@@ -2,32 +2,130 @@ name: Security Pipeline
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
 
   pull_request:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
 
+# ---------------- BUILD ----------------
   build:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.11"
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
 
-    - name: Install Dependencies
-      run: |
-        pip install -r requirements.txt
+      - name: Build Verification
+        run: python -m py_compile app/app.py
 
-    - name: Build Verification
-      run: |
-        python -m py_compile app/app.py
+
+# ---------------- UNIT TESTS ----------------
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Tests
+        run: pytest
+
+
+# ---------------- SEMGREP SAST ----------------
+  semgrep:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Semgrep
+        run: pip install semgrep
+
+      - name: Run Semgrep Scan
+        run: semgrep --config=auto
+
+
+# ---------------- DEPENDENCY SCAN ----------------
+  dependency_scan:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Run Dependency Scan
+        run: pip-audit
+
+
+# ---------------- SECRET SCANNING (GITLEAKS) ----------------
+  gitleaks:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+
+
+# ---------------- SECRET SCANNING (TRUFFLEHOG) ----------------
+  trufflehog:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run TruffleHog
+        uses: trufflesecurity/trufflehog@main
+
+
+# ---------------- SECURITY GATE ----------------
+  security_gate:
+    runs-on: ubuntu-latest
+    needs: [test, semgrep, dependency_scan, gitleaks, trufflehog]
+
+    steps:
+      - name: Security Gate Approval
+        run: echo "All security checks passed. Ready for deployment."
+
+
+# ---------------- DEPLOY (OPTIONAL STAGE) ----------------
+  deploy:
+    runs-on: ubuntu-latest
+    needs: security_gate
+
+    steps:
+      - name: Deploy Approved Build
+        run: echo "Deploying to AWS EC2 (add your deployment script here)"
