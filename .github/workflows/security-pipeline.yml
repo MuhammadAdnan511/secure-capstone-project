@@ -14,8 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -29,7 +28,7 @@ jobs:
         run: python -m py_compile app/app.py
 
 
-# ---------------- UNIT TESTS ----------------
+# ---------------- TEST ----------------
   test:
     runs-on: ubuntu-latest
     needs: build
@@ -49,7 +48,7 @@ jobs:
         run: pytest
 
 
-# ---------------- SEMGREP SAST ----------------
+# ---------------- SEMGREP ----------------
   semgrep:
     runs-on: ubuntu-latest
     needs: build
@@ -87,8 +86,8 @@ jobs:
         run: pip-audit
 
 
-# ---------------- GITLEAKS ----------------
-  gitleaks:
+# ---------------- SECRETS ----------------
+  secrets:
     runs-on: ubuntu-latest
     needs: build
 
@@ -98,15 +97,6 @@ jobs:
       - name: Run Gitleaks
         uses: gitleaks/gitleaks-action@v2
 
-
-# ---------------- TRUFFLEHOG ----------------
-  trufflehog:
-    runs-on: ubuntu-latest
-    needs: build
-
-    steps:
-      - uses: actions/checkout@v4
-
       - name: Run TruffleHog
         uses: trufflesecurity/trufflehog@main
 
@@ -114,35 +104,36 @@ jobs:
 # ---------------- SECURITY GATE ----------------
   security_gate:
     runs-on: ubuntu-latest
-    needs: [test, semgrep, dependency_scan, gitleaks, trufflehog]
+    needs: [test, semgrep, dependency_scan, secrets]
 
     steps:
-      - name: Security Gate
+      - name: Security Gate Passed
         run: echo "All security checks passed"
 
 
-# ---------------- DEPLOY TO EC2 ----------------
+# ---------------- DEPLOY ----------------
   deploy:
     runs-on: ubuntu-latest
-
-    needs: [security_gate]
+    needs: security_gate
 
     steps:
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Show EC2 Target
+        run: echo "Deploying to ${{ secrets.EC2_HOST }}"
 
-      - name: Deploy Application
+      - name: Test SSH Connection (Debug Step)
+        run: |
+          nc -zv ${{ secrets.EC2_HOST }} 22 || echo "SSH PORT CLOSED OR BLOCKED"
+
+      - name: Deploy Application via SSH
         uses: appleboy/ssh-action@v1.0.3
+        timeout-minutes: 5
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
+          command_timeout: 10m
           script: |
             cd /home/ubuntu/secure-capstone-project
             git pull origin main
-            sudo systemctl start app
+            sudo systemctl restart app
