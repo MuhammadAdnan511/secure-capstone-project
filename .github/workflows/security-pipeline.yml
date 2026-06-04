@@ -14,7 +14,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -28,7 +29,7 @@ jobs:
         run: python -m py_compile app/app.py
 
 
-# ---------------- TEST ----------------
+# ---------------- UNIT TESTS ----------------
   test:
     runs-on: ubuntu-latest
     needs: build
@@ -48,7 +49,7 @@ jobs:
         run: pytest
 
 
-# ---------------- SEMGREP ----------------
+# ---------------- SEMGREP SAST ----------------
   semgrep:
     runs-on: ubuntu-latest
     needs: build
@@ -86,8 +87,8 @@ jobs:
         run: pip-audit
 
 
-# ---------------- SECRETS ----------------
-  secrets:
+# ---------------- SECRET SCANNING (GITLEAKS) ----------------
+  gitleaks:
     runs-on: ubuntu-latest
     needs: build
 
@@ -97,6 +98,15 @@ jobs:
       - name: Run Gitleaks
         uses: gitleaks/gitleaks-action@v2
 
+
+# ---------------- SECRET SCANNING (TRUFFLEHOG) ----------------
+  trufflehog:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+
       - name: Run TruffleHog
         uses: trufflesecurity/trufflehog@main
 
@@ -104,14 +114,14 @@ jobs:
 # ---------------- SECURITY GATE ----------------
   security_gate:
     runs-on: ubuntu-latest
-    needs: [test, semgrep, dependency_scan, secrets]
+    needs: [test, semgrep, dependency_scan, gitleaks, trufflehog]
 
     steps:
-      - name: Security Gate Passed
-        run: echo "All security checks passed"
+      - name: Security Gate Approval
+        run: echo "All security checks passed. Ready for deployment."
 
 
-# ---------------- DEPLOY ----------------
+# ---------------- DEPLOY (OPTIONAL STAGE) ----------------
   deploy:
     runs-on: ubuntu-latest
     needs: security_gate
