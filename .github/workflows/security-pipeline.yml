@@ -145,4 +145,4 @@ jobs:
           script: |
             cd /home/ubuntu/secure-capstone-project
             git pull origin main
-            sudo systemctl restart app
+            sudo systemctl start app
