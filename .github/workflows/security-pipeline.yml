@@ -87,7 +87,7 @@ jobs:
         run: pip-audit
 
 
-# ---------------- SECRET SCANNING (GITLEAKS) ----------------
+# ---------------- GITLEAKS ----------------
   gitleaks:
     runs-on: ubuntu-latest
     needs: build
@@ -99,7 +99,7 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
 
 
-# ---------------- SECRET SCANNING (TRUFFLEHOG) ----------------
+# ---------------- TRUFFLEHOG ----------------
   trufflehog:
     runs-on: ubuntu-latest
     needs: build
@@ -117,36 +117,32 @@ jobs:
     needs: [test, semgrep, dependency_scan, gitleaks, trufflehog]
 
     steps:
-      - name: Security Gate Approval
-        run: echo "All security checks passed. Ready for deployment."
+      - name: Security Gate
+        run: echo "All security checks passed"
 
 
-# ---------------- DEPLOY on EC2 ----------------
+# ---------------- DEPLOY TO EC2 ----------------
   deploy:
-  runs-on: ubuntu-latest
+    runs-on: ubuntu-latest
 
-  needs:
-    - semgrep
-    - dependency_scan
-    - secrets_scan
-    - test
+    needs: [security_gate]
 
-  steps:
+    steps:
 
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ secrets.AWS_REGION }}
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
-    - name: Deploy Application
-      uses: appleboy/ssh-action@master
-      with:
-        host: ${{ secrets.EC2_HOST }}
-        username: ubuntu
-        key: ${{ secrets.EC2_SSH_KEY }}
-        script: |
-          cd /home/ubuntu/secure-capstone-project
-          git pull origin main
-          sudo systemctl restart app
+      - name: Deploy Application
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd /home/ubuntu/secure-capstone-project
+            git pull origin main
+            sudo systemctl restart app
