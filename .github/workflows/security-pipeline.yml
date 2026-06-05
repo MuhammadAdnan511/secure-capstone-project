@@ -121,7 +121,7 @@ jobs:
         run: echo "All security checks passed. Ready for deployment."
 
 
-# ---------------- DEPLOY (OPTIONAL STAGE) ----------------
+# ---------------- DEPLOY on EC2 ----------------
   deploy:
     runs-on: ubuntu-latest
     needs: security_gate
